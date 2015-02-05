@@ -1,102 +1,118 @@
+#!/usr/bin/env php
 <?php
-$host = 'localhost';
-$port = 3306;
-$username = '';
-$password = '';
-$database = '';
-$query = '';
-$replace = false;
+/**
+ * Search all tables of the database for occurrences, li grep but for database
+ *
+ * Usage example: ./dbgrep.php --username=root --password=banaan123 --search=wiredstuff --database=project
+ */
+
+$options = parseArguments();
+$pdo = connect($options);
+search($pdo, $options['database'], $options['search'], isset($options['replace']) ? $options['replace'] : false);
+
+function search(PDO $pdo, $database, $search, $replace = null)
+{
+    //tables
+    $sql = 'SELECT * FROM information_schema.TABLES WHERE TABLE_SCHEMA = :TABLE_SCHEMA';
+    $sth = $pdo->prepare($sql);
+    $sth->execute(array(':TABLE_SCHEMA' => $database));
+
+    $total = 0;
+
+    foreach ($sth->fetchAll() as $rowTable) {
+        echo "table {$rowTable['TABLE_NAME']} ..." . PHP_EOL;
+
+        //columns
+        $sql1 = 'SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = :TABLE_SCHEMA AND TABLE_NAME = :TABLE_NAME';
+        $sth1 = $pdo->prepare($sql1);
+        $sth1->execute(array(':TABLE_SCHEMA' => $database, ':TABLE_NAME' => $rowTable['TABLE_NAME']));
+
+        $sql2 = "SELECT * FROM {$database}.{$rowTable['TABLE_NAME']} WHERE ";
+        $tableWhere = array();
+        foreach ($sth1->fetchAll() as $rowColumn) {
+            $tableWhere[] = "`{$rowColumn['COLUMN_NAME']}` LIKE " . $pdo->quote('%' . $search . '%') . "";
+        }
+        $sql2 .= join(' OR ', $tableWhere);
+        //    echo $sql2 . PHP_EOL;
+
+        if (false !== $replace) {
+            $sqlUpdate = "UPDATE {$database}.{$rowTable['TABLE_NAME']} SET ";
+            $sqlUpdateExecute = false;
+        }
+
+        //result
+        $sth2 = $pdo->query($sql2);
+        $columnsFound = array();
+        while ($rowTableRow = $sth2->fetch(PDO::FETCH_ASSOC)) {
+            $total++;
+            echo "found row in table {$rowTable['TABLE_NAME']}" . PHP_EOL;
+            foreach ($rowTableRow as $k => $v) {
+                echo "\t {$k} : {$v}" . PHP_EOL;
+
+                if (false !== $replace) {
+                    $sqlUpdate .= "{$k} = REPLACE({$k}, {$pdo->quote($search)}, {$pdo->quote($replace)}), ";
+                    $sqlUpdateExecute = true;
+                }
+            }
+        }
+
+        if (false !== $replace && $sqlUpdateExecute) {
+            echo "updating table {$rowTable['TABLE_NAME']}" . PHP_EOL;
+            $sqlUpdate = substr($sqlUpdate, 0, -2);
+            $sqlUpdate .= ' WHERE ' . join('OR', $tableWhere);
+            //        echo $sqlUpdate . PHP_EOL;
+            try {
+                $pdo->exec($sqlUpdate);
+            } catch (\Exception $e) {
+                echo "FAIL {$sqlUpdate}" . PHP_EOL;
+            }
+        }
+    }
+
+    echo "Total found: " . $total . PHP_EOL;
+}
 
 //parse cli options
-$longopts  = array(
-    "host:",    // Optional value
-    "port:",    // Optional value
-    "username:",    // Optional value
-    "password:",    // Optional value
-    "database:",    // Optional value
-    "query:",    // Optional value
-    "replace:",    // Optional value
-);
-$options = getopt('', $longopts);
-//print_r($options);
-//print_r($argv);
+function parseArguments()
+{
+    $optionsRequired = array('host', 'port', 'username', 'password', 'database', 'search');
+    $optionsOptional = array('replace');
+    $optionsDefault = array('host' => 'localhost', 'port' => 3306);
 
-$database = $options['database'];
-
-if (isset($options['host'])) {
-    $host = $options['host'];
-}
-if (isset($options['port'])) {
-    $port = $options['port'];
-}
-if (isset($options['username'])) {
-    $username = $options['username'];
-}
-if (isset($options['password'])) {
-    $password = $options['password'];
-}
-if (isset($options['query'])) {
-    $query = $options['query'];
-}
-if (isset($options['replace'])) {
-    $replace = $options['replace'];
-}
-
-$dsn = "mysql:host={$host};port={$port}";
-$pdo = new PDO($dsn, $username, $password);
-$pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
-
-//tables
-$sql = 'SELECT * FROM information_schema.TABLES WHERE TABLE_SCHEMA = :TABLE_SCHEMA';
-$sth = $pdo->prepare($sql);
-$sth->execute(array(':TABLE_SCHEMA' => $database));
-
-$total = 0;
-
-foreach ($sth->fetchAll() as $rowTable) {
-    echo "table {$rowTable['TABLE_NAME']} ..." . PHP_EOL;
-
-    //columns
-    $sql1 = 'SELECT * FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = :TABLE_SCHEMA AND TABLE_NAME = :TABLE_NAME';
-    $sth1 = $pdo->prepare($sql1);
-    $sth1->execute(array(':TABLE_SCHEMA' => $database, ':TABLE_NAME' => $rowTable['TABLE_NAME']));
-
-    $sql2 = "SELECT * FROM {$database}.{$rowTable['TABLE_NAME']} WHERE ";
-    $tableWhere = array();
-    foreach ($sth1->fetchAll() as $rowColumn) {
-        $tableWhere[] = "`{$rowColumn['COLUMN_NAME']}` LIKE " . $pdo->quote('%' . $query . '%') . "";
+    $longopts = array();
+    foreach ($optionsRequired as $o) {
+        $longopts[] = "{$o}:";
     }
-    $sql2 .= join(' OR ', $tableWhere);
-//    echo $sql2 . PHP_EOL;
+    foreach ($optionsOptional as $o) {
+        $longopts[] = "{$o}:";
+    }
 
-    $sqlUpdate = "UPDATE {$database}.{$rowTable['TABLE_NAME']} SET ";
-    $sqlUpdateExecute = false;
+    $options = getopt('', $longopts);
+    $optionsMissing = array();
+    foreach ($optionsRequired as $option) {
+        //force default value
+        if ((!isset($options[$option]) || !$options[$option]) && isset($optionsDefault[$option])) {
+            $options[$option] = $optionsDefault[$option];
+        }
 
-    //result
-    $sth2 = $pdo->query($sql2);
-    $columnsFound = array();
-    while ($rowTableRow = $sth2->fetch(PDO::FETCH_ASSOC)) {
-        $total ++;
-        echo "found row in table {$rowTable['TABLE_NAME']}" . PHP_EOL;
-        foreach ($rowTableRow as $k => $v) {
-            echo "\t {$k} : {$v}" . PHP_EOL;
-
-            $sqlUpdate .= "{$k} = REPLACE({$k}, {$pdo->quote($query)}, {$pdo->quote($replace)}), ";
-            $sqlUpdateExecute = true;
+        //finally verify
+        if (!isset($options[$option]) || !$options[$option]) {
+            $optionsMissing[] = $option;
         }
     }
 
-    if ($sqlUpdateExecute) {
-        echo "updating table {$rowTable['TABLE_NAME']}" . PHP_EOL;
-        $sqlUpdate = substr($sqlUpdate, 0, -2);
-        $sqlUpdate .= ' WHERE ' . join ('OR', $tableWhere);
-//        echo $sqlUpdate . PHP_EOL;
-        try {
-            $pdo->exec($sqlUpdate);
-        } catch (\Exception $e) {
-            echo "FAIL" . PHP_EOL;
-        }
+    if (array() !== $optionsMissing) {
+        echo "Required options not presented. Please specify --" . join(', --', $optionsMissing) . PHP_EOL;
+        exit;
     }
+
+    return $options;
 }
 
-echo "Total found: " . $total . PHP_EOL;
+function connect(array $options)
+{
+    $dsn = "mysql:host={$options['host']};port={$options['port']}";
+    $pdo = new PDO($dsn, $options['username'], $options['password']);
+    $pdo->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+    return $pdo;
+}
