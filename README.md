@@ -1,9 +1,13 @@
 # mysql grep
 
 Search&replace all tables of the database for occurrences, like grep but for database.
-No external dependencies are needed (only `php-cli` actually), so just download sources and run:
+No external dependencies are needed (only `php-cli` actually), so just download sources
 
-`curl https://raw.githubusercontent.com/caseycs/mysql-grep/master/dbgrep.php > dbgrep.php`
+```
+wget https://raw.githubusercontent.com/caseycs/mysql-grep/master/dbgrep.php`
+```
+
+and run!
 
 Search only:
 ```
