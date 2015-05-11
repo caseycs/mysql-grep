@@ -25,6 +25,7 @@ php dbgrep.php --username=root --password=banaan123 \
 According to columns collation search maybe case-insensetive (so you will find `WiredStuff` and `WIREDSTUFF` as well), BUT replace is every time case-sensetive. So you have to replace for all the cases separately:
 
 `wiredstuff -> coolstuff`
+
 `WiredStuff -> CoolStuff` 
 
 and so on.
