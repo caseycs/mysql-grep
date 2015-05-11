@@ -22,4 +22,4 @@ php dbgrep.php --username=root --password=banaan123 \
     --replace=coolstuff
 ```
 
-According to columns collation search maybe case-insensetive, BUT replace is every time case-sensetime. 
+According to columns collation search maybe case-insensetive (so you will find `CoolStuff` and `COOLSTUFF` as well), BUT replace is every time case-sensetive. 
