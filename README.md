@@ -1,17 +1,21 @@
 # mysql grep
 
-Search&replace all tables of the database for occurrences, like grep but for database
+Search&replace all tables of the database for occurrences, like grep but for database.
+No external dependencies are needed (only `php-cli` actually), so just download sources and run:
 
-Usage example:
+`curl https://raw.githubusercontent.com/caseycs/mysql-grep/master/dbgrep.php > dbgrep.php`
 
-Dry run:
+Search only:
 ```
-php dbgrep.php --username=root --password=banaan123 --database=project --search=wiredstuff
+php dbgrep.php --username=root --password=banaan123 \
+    --database=project --search=wiredstuff
 ```
 
 Replace:
 ```
-php dbgrep.php --username=root --password=banaan123 --search=wiredstuff --database=project  --replace=coolstuff
+php dbgrep.php --username=root --password=banaan123 \
+    --search=wiredstuff --database=project
+    --replace=coolstuff
 ```
 
 According to columns collation search maybe case-insensetive, BUT replace is every time case-sensetime. 
