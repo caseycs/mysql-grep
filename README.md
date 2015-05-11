@@ -18,7 +18,7 @@ php dbgrep.php --username=root --password=banaan123 \
 Replace:
 ```
 php dbgrep.php --username=root --password=banaan123 \
-    --search=wiredstuff --database=project
+    --database=project --search=wiredstuff
     --replace=coolstuff
 ```
 
